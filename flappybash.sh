@@ -5,10 +5,10 @@ IFS=''
 FB_WIDTH=$(tput cols)
 FB_HEIGHT=$(tput lines)
 
-TIMING=0.2
+TIMING=0.1
 
-GAP_SIZE=10
-MIN_WALL_HEIGHT=5
+GAP_SIZE=3
+MIN_WALL_HEIGHT=2
 
 declare -i FB_POS_Y=FB_HEIGHT/2
 declare -i FB_POS_X=3
@@ -34,13 +34,33 @@ function draw_area() {
 	clear
 
 	c="*"
-	echo -en "\e[$FB_POS_Y;${FB_POS_X}f$c"
+	echo -en "\E[$FB_POS_Y;${FB_POS_X}f$c"
 	
+	c="|"
+	Y=1
+	while [ $Y -le $WALL_POS_Y ]; do
+		echo -en "\E[$Y;${WALL_POS_X}f$c"
+		let Y++
+	done
+	Y=$(($WALL_POS_Y+GAP_SIZE+1))
+	while [ $Y -le $(($FB_HEIGHT-1)) ]; do
+		echo -en "\E[$Y;${WALL_POS_X}f$c"
+		let Y++
+	done
+}
 
+
+function create_wall() {
+	WALL_POS_Y=$(($RANDOM%(FB_HEIGHT-MIN_WALL_HEIGHT-MIN_WALL_HEIGHT-GAP_SIZE)+MIN_WALL_HEIGHT))
+	WALL_POS_X=$(($FB_WIDTH-5))
 }
 
 function update () {
 	
+	let WALL_POS_X--
+	if [ $WALL_POS_X -eq 0 ]; then
+		create_wall
+	fi
 	
 	current_time=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
     gravity_elapsed_time=$(($current_time - $gravity_last_update))
@@ -51,11 +71,6 @@ function update () {
 }
 
 function move() {
-#	check_food
-#	if [ $DEATH -gt 0 ] ; then game_over; fi
-#	if [ $FOOD_NUMBER -eq 0 ] ; then new_level;	fi
-
-#	echo -en "\e[$HY;${HX}f\e[1;33;42m☻\e[0m"
 
 	( sleep $TIMING; kill -ALRM $$ ) &
 
@@ -63,32 +78,16 @@ function move() {
 		' ') let FB_POS_Y-=2 ;;
 	esac
 	KEY=
-#	HOUSENKA[$C]="$HY;$HX"
-#	: $[C++]	
-#	game_info
 
 	update
 	draw_area
 	last_update=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
 }
 
-function create_wall() {
-	WALL_POS_Y=$(($RANDOM%(FB_HEIGHT-MIN_WALL_HEIGHT-MIN_WALL_HEIGHT-GAP_SIZE)+MIN_WALL_HEIGHT))
-	WALL_POS_X=FB_WIDTH
-}
-
 function new_level() {
-#	unset HOUSENKA
-#	for i in ${!FOOD[@]}; do unset FOOD[$i]; done # erase leaves and poison
-#	clear
+	create_wall
 	draw_area
-#	FOOD_NUMBER=$[DEFAULT_FOOD_NUMBER*=2]
-#	gen_food
-#	HX=$[MW/2] HY=$[MH/2]  # start position in the middle of the screen
-	# body initialization
-#	HOUSENKA=([0]="$[HY-2];$HX" [1]="$[HY-1];$HX" [2]="$HY;$HX") 
 	KEY='' 
-#	C=2
 	trap move ALRM
 }
 
