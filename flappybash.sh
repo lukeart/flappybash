@@ -1,30 +1,28 @@
 #!/bin/bash
 
 IFS=''
+echo -en "\e[?25l"
+_STTY=$(stty -g)
 
 FB_WIDTH=$(tput cols)
 FB_HEIGHT=$(tput lines)
 
-TIMING=0.1
-
 GAP_SIZE=3
 MIN_WALL_HEIGHT=2
 
-declare -i FB_POS_Y=FB_HEIGHT/2
-declare -i FB_POS_X=3
-declare -i WALL_POS_Y=0
-declare -i WALL_POS_X=10
-declare -ri fps=60
-declare -ri gravity_fps=10
-declare -i score=0
-declare -i last_update=0
-declare -i gravity_last_update=0
+FPS=10
+TIMING=`bc -l <<< "1/$FPS"`
+
+FB_POS_Y=FB_HEIGHT/2
+FB_POS_X=4
+WALL_POS_Y=0
+WALL_POS_X=10
 
 function at_exit() {
 	trap : ALRM # disable interupt
 
-	printf "\e[?9l"          # Turn off mouse reading
-	printf "\e[?12l\e[?25h"  # Turn on cursor
+	echo -en "\e[?9l"          # Turn off mouse reading
+	echo -en "\e[?12l\e[?25h"  # Turn on cursor
 	stty "$_STTY"            # reinitialize terminal settings
 	tput sgr0
 	clear
@@ -68,14 +66,8 @@ function update () {
 		fi
 	fi
 	
-	current_time=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
-    gravity_elapsed_time=$(($current_time - $gravity_last_update))
-    if [[ $gravity_last_update -eq 0 || $gravity_elapsed_time -gt $(( 1000 / $gravity_fps )) ]]; then
-        let FB_POS_Y++
-        gravity_last_update=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
-    fi
-    
-    if [ $FB_POS_Y -ge $FB_HEIGHT ] || [ $FB_POS_Y -le 0 ]]; then
+	FB_POS_Y=$[FB_POS_Y+1]
+    if [ $FB_POS_Y -ge $FB_HEIGHT ] || [ $(($FB_POS_Y+100)) -le 100 ]]; then
 		exit
 	fi
 	
@@ -86,13 +78,12 @@ function move() {
 	( sleep $TIMING; kill -ALRM $$ ) &
 
 	case "$KEY" in
-		' ') let FB_POS_Y-=2 ;;
+		' ') FB_POS_Y=$[FB_POS_Y-2] ;;
 	esac
 	KEY=
 
 	update
 	draw_area
-	last_update=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
 }
 
 function new_level() {
