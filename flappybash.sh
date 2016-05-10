@@ -57,9 +57,15 @@ function create_wall() {
 
 function update () {
 	
-	let WALL_POS_X--
+	WALL_POS_X=$[WALL_POS_X-1]
 	if [ $WALL_POS_X -eq 0 ]; then
 		create_wall
+	fi
+	
+	if [ $WALL_POS_X -eq $FB_POS_X ]; then
+		if [ $WALL_POS_Y -ge $FB_POS_Y ] || [ $(($WALL_POS_Y+$GAP_SIZE+1)) -le $FB_POS_Y ]; then
+			exit
+		fi
 	fi
 	
 	current_time=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
@@ -68,6 +74,11 @@ function update () {
         let FB_POS_Y++
         gravity_last_update=$( perl -MTime::HiRes -e 'print int(1000 * Time::HiRes::gettimeofday),"\n"' )
     fi
+    
+    if [ $FB_POS_Y -ge $FB_HEIGHT ] || [ $FB_POS_Y -le 0 ]]; then
+		exit
+	fi
+	
 }
 
 function move() {
