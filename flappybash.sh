@@ -7,16 +7,21 @@ _STTY=$(stty -g)
 FB_WIDTH=$(tput cols)
 FB_HEIGHT=$(tput lines)
 
-GAP_SIZE=5
+GAP_SIZE=`bc <<< $FB_HEIGHT/3`
 MIN_WALL_HEIGHT=2
-WALL_DISTANCE=10
+WALL_DISTANCE=`bc <<< $FB_HEIGHT/1.5`
+WALL_WIDTH=`bc <<< $WALL_DISTANCE/5`
+#echo 1 $WALL_DISTANCE2
+#WALL_DISTANCE=10
 NUM_WALLS=`expr $FB_WIDTH / $WALL_DISTANCE`
+FLAP_SPEED=`bc <<< $GAP_SIZE/2`
 echo $FB_WIDTH $WALL_DISTANCE $NUM_WALLS
 echo -n > flappydebug
 read
 
 
-FPS=10
+#FPS=10
+FPS=`bc <<< $FB_HEIGHT/1.5`
 TIMING=`bc -l <<< "1/$FPS"`
 
 FB_POS_Y=$[FB_HEIGHT/2]
@@ -37,33 +42,63 @@ function at_exit() {
 }
 
 function draw_area() {
-	clear
+#	clear
+	echo -e '\0033\0143'
 
+	# Draw Flappy
 	c="*"
 	echo -en "\E[$FB_POS_Y;${FB_POS_X}f$c"
 	
-	X=0;
-	c="|"
+	Z=0;
 	# Loop through all walls, until they won't fit on the screen
 	# TODO: improve loop conditions
-	while [ ${WALLS_X[$X]} -le $FB_WIDTH ] && [ $X -le $NUM_WALLS ]; do
-		WY=${WALLS_Y[$X]}
-		WX=${WALLS_X[$X]}
+	while [ ${WALLS_X[$Z]} -le $FB_WIDTH ] && [ $Z -le $NUM_WALLS ]; do
+		WY=${WALLS_Y[$Z]}
+		WX=${WALLS_X[$Z]}
 		
 		# Upper part of the wall
-		Y=1
-		while [ $Y -le $WY ]; do
-			echo -en "\E[$Y;${WX}f$c"
-			Y=$[Y+1]
+		X=1
+		while [ "$X" -le "$WALL_WIDTH" ]; do
+			Y=1
+			while [ $Y -le $WY ]; do
+				if [ "$X" = 1 ] || [ "$X" = "$WALL_WIDTH" ]; then
+					c="|"
+					if [ "$Y" -eq "$WY" ]; then
+						c="+"
+					fi				
+				else
+					c=" "
+					if [ "$Y" -eq "$WY" ]; then
+						c="-"
+					fi
+				fi
+				echo -en "\E[$Y;$[WX+X]f$c"
+				Y=$[Y+1]
+			done
+			X=$[X+1]
 		done
-		
 		# Buttom part of the wall
-		Y=$[WY+GAP_SIZE+1]
-		while [ $Y -le $(($FB_HEIGHT-1)) ]; do
-			echo -en "\E[$Y;${WX}f$c"
-			Y=$[Y+1]
+		X=1
+		while [ "$X" -le "$WALL_WIDTH" ]; do
+			Y=$[WY+GAP_SIZE+1]
+			while [ $Y -le $(($FB_HEIGHT-1)) ]; do
+				if [ "$X" = 1 ] || [ "$X" = "$WALL_WIDTH" ]; then
+					c="|"
+					if [ "$Y" -eq "$[WY+GAP_SIZE+1]" ]; then
+						c="+"
+					fi
+				else
+					c=" "
+					if [ "$Y" -eq "$[WY+GAP_SIZE+1]" ]; then
+						c="-"
+					fi
+				fi
+				echo -en "\E[$Y;$[WX+X]f$c"
+				Y=$[Y+1]
+			done
+			X=$[X+1]
 		done
-		X=$[X+1]
+		Z=$[Z+1]
 	done
 }
 
@@ -79,13 +114,12 @@ function create_wall() {
 		WALLS_X[$LAST]=$[${WALLS_X[$[LAST-1]]}+$WALL_DISTANCE]
 	done
 	
-	# WALLS_POX_Y/X will contain the only relevant wall coordinates
-	WALL_POS_Y=${WALLS_Y[0]}
-	WALL_POS_X=${WALLS_X[0]}
 }
 
 function update () {
-	
+	# 'Gravity'
+	FB_POS_Y=$[FB_POS_Y+1]
+
 	# Move all walls in the array forward
 	X=0;
 	while [ $X -lt ${#WALLS_X[@]} ]; do
@@ -93,11 +127,8 @@ function update () {
 		X=$[X+1]
 	done
 	
-	# As well as the closest one
-	WALL_POS_X=$[WALL_POS_X-1]
-	
 	# If the closest one has left the screen, shift the array.
-	if [ $WALL_POS_X -eq 0 ]; then
+	if [ ${WALLS_X[0]} -eq 0 ]; then
 		WALLS_X=("${WALLS_X[@]:1}")
 		WALLS_Y=("${WALLS_Y[@]:1}")
 		# TODO: WALL_POS_Y/X needs to be updates, preferrably only once
@@ -108,9 +139,13 @@ function update () {
 		create_wall
 	fi
 
+	# We'll check only the only relevant (first) wall coordinates
+#	WALL_POS_Y=${WALLS_Y[0]}
+#	WALL_POS_X=${WALLS_X[0]}
+	
 	# Wall collision
-	if [ $WALL_POS_X -eq $FB_POS_X ]; then
-		if [ $WALL_POS_Y -ge $FB_POS_Y ] || [ $[WALL_POS_Y+GAP_SIZE+1] -le $FB_POS_Y ]; then
+	if [ ${WALLS_X[0]} -le $FB_POS_X ] && [ $[${WALLS_X[0]}+WALL_WIDTH] -gt $FB_POS_X ]; then
+		if [ ${WALLS_Y[0]} -ge $FB_POS_Y ] || [ $[${WALLS_Y[0]}+GAP_SIZE+1] -le $FB_POS_Y ]; then
 			exit
 		fi
 	fi
@@ -121,8 +156,6 @@ function update () {
 		exit
 	fi
 	
-	# 'Gravity'
-	FB_POS_Y=$[FB_POS_Y+1]
 }
 
 function move() {
@@ -131,10 +164,10 @@ function move() {
 
 	case "$KEY" in
 			# Flap
-		' ') if [ $FB_POS_Y -le 2 ]; then
+		' ') if [ $FB_POS_Y -le $FLAP_SPEED ]; then
 				exit
 			fi
-			FB_POS_Y=$[FB_POS_Y-2] ;;
+			FB_POS_Y=$[FB_POS_Y-FLAP_SPEED] ;;
 	esac
 	KEY=
 
